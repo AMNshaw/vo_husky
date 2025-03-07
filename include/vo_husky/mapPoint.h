@@ -10,10 +10,6 @@ struct Frame;
 
 struct Feature;
 
-/**
- * 路标点类
- * 特征点在三角化之后形成路标点
- */
 struct MapPoint {
    public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -48,6 +44,6 @@ struct MapPoint {
     // factory function
     static MapPoint::Ptr CreateNewMappoint();
 };
-}  // namespace myslam
+}  // namespace vo_husky
 
-#endif  // MYSLAM_MAPPOINT_H
+#endif  // VOHUSKY_MAPPOINT_H

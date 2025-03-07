@@ -125,11 +125,6 @@ public:
 
             double z_inv = invz;
             double z_inv2 = z_inv * z_inv;
-
-            // df/dXc
-            double dfdX = -fx * z_inv;
-            // dv/dYc
-            double dfdY = -fy * z_inv;
  
             jac[0] = -fx * z_inv;                  // d_res0/d_pose0
             jac[1] = 0;                            // d_res0/d_pose1

@@ -32,6 +32,6 @@ struct Feature {
 
     Feature(std::shared_ptr<Frame> frame, const cv::KeyPoint &kp);
 };
-}  // namespace myslam
+}  // namespace vo_husky
 
-#endif  // MYSLAM_FEATURE_H
+#endif  // VOHUSKY_FEATURE_H

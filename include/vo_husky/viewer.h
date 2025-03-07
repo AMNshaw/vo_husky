@@ -3,6 +3,9 @@
 
 #include <thread>
 
+#include <pangolin/pangolin.h>
+#include <opencv2/opencv.hpp>
+
 #include "vo_husky/common_include.h"
 #include "vo_husky/frame.h"
 #include "vo_husky/map.h"
@@ -21,6 +24,8 @@ class Viewer {
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
+    void SetCamera(Camera::Ptr camera) { camera_ = camera; }
+
     void Close();
 
     // 增加一个当前帧
@@ -30,14 +35,23 @@ class Viewer {
     void UpdateMap();
 
    private:
+
     void ThreadLoop();
 
     cv::Mat PlotFrameImage();
 
     void PlotPoseComparison(const SE3& groundtruth, const SE3& estimate);
 
+    void Draw3DPose(Frame::Ptr frame);
+
+    void DrawMapPoints();
+
+    void FollowCurrentFrame(pangolin::OpenGlRenderState& vis_camera);
+
     Frame::Ptr current_frame_ = nullptr;
     Map::Ptr map_ = nullptr;
+    Camera::Ptr camera_ = nullptr;
+
     cv::Mat canvas_;
 
     std::thread viewer_thread_;

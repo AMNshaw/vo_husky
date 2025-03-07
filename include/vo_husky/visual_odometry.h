@@ -2,7 +2,7 @@
 #ifndef VOHUSKY_VISUAL_ODOMETRY_H
 #define VOHUSKY_VISUAL_ODOMETRY_H
 
-// #include "vo_husky/backend.h"
+#include "vo_husky/backend.h"
 #include "vo_husky/common_include.h"
 #include "vo_husky/frontend.h"
 #include "vo_husky/viewer.h"
@@ -47,7 +47,7 @@ private:
 
     Camera::Ptr camera_ = nullptr;
     Frontend::Ptr frontend_ = nullptr;
-    // Backend::Ptr backend_ = nullptr;
+    Backend::Ptr backend_ = nullptr;
     Map::Ptr map_ = nullptr;
     Viewer::Ptr viewer_ = nullptr;
 

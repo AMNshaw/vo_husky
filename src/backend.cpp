@@ -1,20 +1,20 @@
-//
-// Created by gaoxiang on 19-5-2.
-//
-
 #include "vo_husky/backend.h"
 #include "vo_husky/feature.h"
 #include "vo_husky/g2o_types.h"
 #include "vo_husky/map.h"
 #include "vo_husky/mapPoint.h"
+#include "vo_husky/common_include.h"
 
 namespace vo_husky {
 
 Backend::Backend() {
+    LOG(INFO) << "Creating backend spin threads...\n";
     BA_running_.store(true);
     PGO_running_.store(true);
     pose_mapPoint_thread_ = std::thread(std::bind(&Backend::Backendloop_BA, this));
     pose_graph_thread_ = std::thread(std::bind(&Backend::Backendloop_PGO, this));
+
+    LOG(INFO) << "Threads initialized\n";
 }
 
 void Backend::UpdateMap() {
@@ -40,16 +40,13 @@ void Backend::Stop() {
 
 void Backend::Backendloop_BA() {
     while (BA_running_.load()) {
-        Map::KeyframesType active_kfs;
-        Map::LandmarksType active_landmarks;
-        {
-            std::unique_lock<std::mutex> lock(data_mutex_);
-            BA_update_.wait(lock);  // 或使用 predicate 的形式
-            active_kfs = map_->GetActiveKeyFrames();
-            active_landmarks = map_->GetActiveMapPoints();
-            // 拷贝数据后释放锁
-        }
+        std::unique_lock<std::mutex> lock(data_mutex_);
+        BA_update_.wait(lock);  // 或使用 predicate 的形式
+        Map::KeyframesType active_kfs = map_->GetActiveKeyFrames();
+        Map::LandmarksType active_landmarks = map_->GetActiveMapPoints();
+        LOG(INFO) << "Backend BA optimizing...\n";
         Optimize_BA(active_kfs, active_landmarks);
+        LOG(INFO) << "Backend BA optimized\n";
     }
 }
 
@@ -62,7 +59,7 @@ void Backend::Backendloop_PGO() {
 
             all_kfs = map_->GetAllKeyFrames();
         }
-        Optimize_PoseGraph(all_kfs);
+        // Optimize_PoseGraph(all_kfs);
     }
 }
 
@@ -70,19 +67,20 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
                        Map::LandmarksType &landmarks) {
     // setup g2o
     typedef g2o::BlockSolver_6_3 BlockSolverType;
-    typedef g2o::LinearSolverCSparse<BlockSolverType::PoseMatrixType> LinearSolverType;
+    typedef g2o::LinearSolverEigen<BlockSolverType::PoseMatrixType> LinearSolverType;
     auto solver = new g2o::OptimizationAlgorithmLevenberg(
         std::make_unique<BlockSolverType>(
         std::make_unique<LinearSolverType>()));
     g2o::SparseOptimizer optimizer;
     optimizer.setAlgorithm(solver);
+    // optimizer.setVerbose(true);
 
     // pose 顶点，使用Keyframe id
     std::map<unsigned long, VertexPose *> vertices_pose;
     std::map<unsigned long, Vertex3dMapPoint *> vertices_landmarks;
 
-    Mat33 K = camera_->K();
-    SE3 ext = camera_->Ext();
+    std::map<unsigned long, std::pair<SE3, SE3>> pose_diff;
+
 
     // vertices of poses
     unsigned long max_kf_id = 0;
@@ -97,6 +95,9 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
         }
 
         vertices_pose.insert({kf->keyframe_id_, vertex_pose});
+
+        // For debug
+        pose_diff[kf->keyframe_id_].first = kf->Pose_EST();
     }
 
     // vertices of landmarks
@@ -105,7 +106,7 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
         if (landmark.second->is_outlier_) continue;
         unsigned long landmark_id = landmark.second->id_;
 
-        if (vertices_landmarks.find(landmark_id) == vertices_landmarks.end()) {
+        if (!vertices_landmarks.count(landmark_id)) {
             Vertex3dMapPoint *vertex_mappoint = new Vertex3dMapPoint;
             vertex_mappoint->setEstimate(landmark.second->Position());
             vertex_mappoint->setId(landmark_id + max_kf_id + 1);
@@ -121,6 +122,7 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
     double chi2_th = 5.991;  // robust kernel 阈值
     std::map<EdgeReprojection *, Feature::Ptr> edges_and_features;
 
+
     for (auto &landmark : landmarks) {
         if (landmark.second->is_outlier_) continue;
         unsigned long landmark_id = landmark.second->id_;
@@ -134,10 +136,10 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
             auto frame = feat->frame_.lock();
             if (feat->frame_.lock() == nullptr) continue;
             
-            if (vertices_pose.find(frame->keyframe_id_) != vertices_pose.end() && 
-                vertices_landmarks.find(landmark_id) != vertices_landmarks.end()) {
+            if (vertices_pose.count(frame->keyframe_id_)&& 
+                vertices_landmarks.count(landmark_id)) {
                     
-                EdgeReprojection *edge = new EdgeReprojection(K, ext);
+                EdgeReprojection *edge = new EdgeReprojection(camera_);
                 edge->setId(index);
                 edge->setVertex(0, vertices_pose.at(frame->keyframe_id_));    // pose
                 edge->setVertex(1, vertices_landmarks.at(landmark_id));  // landmark
@@ -152,10 +154,23 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
             }
         }
     }
+    
 
     // do optimization and eliminate the outliers
     optimizer.initializeOptimization();
     optimizer.optimize(10);
+    
+    for(auto &v_p : vertices_pose){
+        pose_diff[v_p.first].second = v_p.second->estimate();
+    }
+
+    // for(auto &p : pose_diff){
+    //     std::cout << "Pose " << p.first << "\n: " 
+    //             << p.second.first.translation()(0) << " " << p.second.second.translation()(0) << "\n"
+    //             << p.second.first.translation()(1) << " " << p.second.second.translation()(1) << "\n"
+    //             << p.second.first.translation()(2) << " " << p.second.second.translation()(2) << "\n";
+    // }
+    
 
     int cnt_outlier = 0, cnt_inlier = 0;
     int iteration = 0;
@@ -182,15 +197,17 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
     for (auto &ef : edges_and_features) {
         if (ef.first->chi2() > chi2_th) {
             ef.second->is_outlier_ = true;
-            // remove the observation
-            ef.second->map_point_.lock()->RemoveObservation(ef.second);
+            auto mp = ef.second->map_point_.lock();
+            if (mp) {
+                mp->RemoveObservation(ef.second);
+            }
         } else {
             ef.second->is_outlier_ = false;
         }
     }
 
-    LOG(INFO) << "Outlier/Inlier in optimization: " << cnt_outlier << "/"
-              << cnt_inlier;
+    LOG(INFO) << "Inlier/Total in backend BA optimization: " << cnt_inlier << "/"
+              << cnt_inlier + cnt_outlier;
 
     // Set pose and lanrmark position
     for (auto &v : vertices_pose) {
@@ -199,65 +216,66 @@ void Backend::Optimize_BA(Map::KeyframesType &keyframes,
     for (auto &v : vertices_landmarks) {
         landmarks.at(v.first)->SetPosition(v.second->estimate());
     }
+    optimizer.clear();
 }
 
-void Backend::Optimize_PoseGraph(Map::KeyframesType& keyframes){
-    typedef g2o::BlockSolver<g2o::BlockSolverTraits<6, 6>> BlockSolverType;
-    typedef g2o::LinearSolverEigen<BlockSolverType::PoseMatrixType> LinearSolverType;
-    auto solver = new g2o::OptimizationAlgorithmLevenberg(
-        std::make_unique<BlockSolverType>(
-        std::make_unique<LinearSolverType>()));
-    g2o::SparseOptimizer optimizer;     // 图模型
-    optimizer.setAlgorithm(solver);   // 设置求解器
-    optimizer.setVerbose(true);       // 打开调试输出
+// void Backend::Optimize_PoseGraph(Map::KeyframesType& keyframes){
+//     typedef g2o::BlockSolver<g2o::BlockSolverTraits<6, 6>> BlockSolverType;
+//     typedef g2o::LinearSolverEigen<BlockSolverType::PoseMatrixType> LinearSolverType;
+//     auto solver = new g2o::OptimizationAlgorithmLevenberg(
+//         std::make_unique<BlockSolverType>(
+//         std::make_unique<LinearSolverType>()));
+//     g2o::SparseOptimizer optimizer;     // 图模型
+//     optimizer.setAlgorithm(solver);   // 设置求解器
+//     optimizer.setVerbose(true);       // 打开调试输出
 
-    int vertexCnt = 0, edgeCnt = 0; // 顶点和边的数量
+//     int vertexCnt = 0, edgeCnt = 0; // 顶点和边的数量
 
-    std::vector<VertexPose *> vertices_pose;
-    std::vector<EdgePoseGraph *> edges;
+//     std::vector<VertexPose *> vertices_pose;
+//     std::vector<EdgePoseGraph *> edges;
 
-    for(auto it = keyframes.begin(); it != keyframes.end(); ++it){
-        VertexPose* v = new VertexPose();
-        v->setId(it->second->keyframe_id_);
-        v->setEstimate(it->second->Pose_EST());
-        optimizer.addVertex(v);
-        vertexCnt++;
-        vertices_pose.push_back(v);
-        if(it == keyframes.begin())
-            v->setFixed(true);
-    }
-    // 添加邊：利用 std::next 取得下一個元素
-    for(auto it = keyframes.begin(); it != keyframes.end(); ){
-        auto it_next = std::next(it);
-        if(it_next == keyframes.end())
-            break;
+//     for(auto it = keyframes.begin(); it != keyframes.end(); ++it){
+//         VertexPose* v = new VertexPose();
+//         v->setId(it->second->keyframe_id_);
+//         v->setEstimate(it->second->Pose_EST());
+//         optimizer.addVertex(v);
+//         vertexCnt++;
+//         vertices_pose.push_back(v);
+//         if(it == keyframes.begin())
+//             v->setFixed(true);
+//     }
+//     // 添加邊：利用 std::next 取得下一個元素
+//     for(auto it = keyframes.begin(); it != keyframes.end(); ){
+//         auto it_next = std::next(it);
+//         if(it_next == keyframes.end())
+//             break;
         
-        EdgePoseGraph* e = new EdgePoseGraph();
-        SE3 T_ij = it->second->Pose_EST().inverse() * it_next->second->Pose_EST();
-        e->setMeasurement(T_ij);
-        e->setInformation(Mat66::Identity());
-        e->setId(edgeCnt++);
-        e->setVertex(0, optimizer.vertices()[it->second->keyframe_id_]);
-        e->setVertex(1, optimizer.vertices()[it_next->second->keyframe_id_]);
-        optimizer.addEdge(e);
-        edges.push_back(e);
+//         EdgePoseGraph* e = new EdgePoseGraph();
+//         SE3 T_ij = it->second->Pose_EST().inverse() * it_next->second->Pose_EST();
+//         e->setMeasurement(T_ij);
+//         e->setInformation(Mat66::Identity());
+//         e->setId(edgeCnt++);
+//         e->setVertex(0, optimizer.vertices()[it->second->keyframe_id_]);
+//         e->setVertex(1, optimizer.vertices()[it_next->second->keyframe_id_]);
+//         optimizer.addEdge(e);
+//         edges.push_back(e);
         
-        ++it;
-    }
+//         ++it;
+//     }
 
-    std::cout << "read total " << vertexCnt << " vertices_pose, " << edgeCnt << " edges." << std::endl;
+//     std::cout << "read total " << vertexCnt << " vertices_pose, " << edgeCnt << " edges." << std::endl;
 
-    std::cout << "optimizing ...\n";
-    optimizer.initializeOptimization();
-    optimizer.optimize(30);
+//     std::cout << "optimizing ...\n";
+//     optimizer.initializeOptimization();
+//     optimizer.optimize(30);
 
-    for(auto &kf : keyframes){
-        int id = kf.second->keyframe_id_;
-        auto v = optimizer.vertices()[id];
-        if(v)
-            kf.second->SetEstimatePose(
-                static_cast<VertexPose*>(v)->estimate());
-    }
-}
+//     for(auto &kf : keyframes){
+//         int id = kf.second->keyframe_id_;
+//         auto v = optimizer.vertices()[id];
+//         if(v)
+//             kf.second->SetEstimatePose(
+//                 static_cast<VertexPose*>(v)->estimate());
+//     }
+// }
 
 }  // namespace vo_husky

@@ -13,19 +13,20 @@ bool VisualOdometry::Init() {
 
     // create components and links
     frontend_ = std::make_shared<Frontend>();
-    // backend_ = std::make_shared<Backend>();
+    backend_ = std::make_shared<Backend>();
     map_ = std::make_shared<Map>();
     viewer_ = std::make_shared<Viewer>();
 
-    // frontend_->SetBackend(backend_);
+    frontend_->SetBackend(backend_);
     frontend_->SetMap(map_);
     frontend_->SetViewer(viewer_);
     frontend_->SetCamera(camera_);
 
-    // backend_->SetMap(map_);
-    // backend_->SetCamera(camera_);
+    backend_->SetMap(map_);
+    backend_->SetCamera(camera_);
 
     viewer_->SetMap(map_);
+    viewer_->SetCamera(camera_);
 
     return true;
 }
@@ -36,14 +37,14 @@ bool VisualOdometry::step(Frame::Ptr newFrame){
     bool success = frontend_->AddFrame(newFrame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
+    // LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
     return success;
 }
 
 
 void VisualOdometry::End() {
 
-    // backend_->Stop();
+    backend_->Stop();
     viewer_->Close();
 
     LOG(INFO) << "VO exit";

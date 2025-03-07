@@ -3,6 +3,7 @@
 #define G2O_TPYES_H
 
 #include "vo_husky/common_include.h"
+#include "vo_husky/camera.h"
 
 #include <g2o/core/base_binary_edge.h>
 #include <g2o/core/base_unary_edge.h>
@@ -57,25 +58,26 @@ class EdgeReprojection : public g2o::BaseBinaryEdge<2, Vec2, VertexPose, Vertex3
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    EdgeReprojection(const Mat33 &K, const SE3 &cam_ext) : K_(K), cam_ext_(cam_ext) {}
+    EdgeReprojection(const vo_husky::Camera::Ptr camera) : camera_(camera) {}
 
     virtual void computeError() override {
         const VertexPose *v0 = static_cast<VertexPose *>(_vertices[0]);
         const Vertex3dMapPoint *v1 = static_cast<Vertex3dMapPoint *>(_vertices[1]);
-        SE3 T_w = v0->estimate();
-        Vec3 pos_pixel = K_ * (cam_ext_ * (T_w * v1->estimate()));
-        pos_pixel /= pos_pixel[2];
-        _error = _measurement - pos_pixel.head<2>();
+        SE3 T_b2w = v0->estimate();
+        Vec3 mapPoint = v1->estimate();
+        Vec2 pos_pixel = camera_->world2pixel(mapPoint, T_b2w);
+        _error = _measurement - pos_pixel;
     }
 
     virtual void linearizeOplus() override {
         const VertexPose *v0 = static_cast<VertexPose *>(_vertices[0]);
         const Vertex3dMapPoint *v1 = static_cast<Vertex3dMapPoint *>(_vertices[1]);
-        SE3 T = v0->estimate();
-        Vec3 pw = v1->estimate();
-        Vec3 pos_cam = cam_ext_ * T * pw;
-        double fx = K_(0, 0);
-        double fy = K_(1, 1);
+        SE3 T_b2w = v0->estimate();
+        SE3 T_w2b = T_b2w.inverse();
+        Vec3 mapPoint = v1->estimate();
+        Vec3 pos_cam = camera_->world2camera(mapPoint, T_b2w);
+        double fx = camera_->K()(0, 0);
+        double fy = camera_->K()(1, 1);
         double X = pos_cam[0];
         double Y = pos_cam[1];
         double Z = pos_cam[2];
@@ -87,7 +89,7 @@ public:
             -fy * X * Zinv;
 
         _jacobianOplusXj = _jacobianOplusXi.block<2, 3>(0, 0) *
-                           cam_ext_.rotationMatrix() * T.rotationMatrix();
+                           camera_->Ext().rotationMatrix() * T_w2b.rotationMatrix();
     }
 
     virtual bool read(std::istream &in) override { return true; }
@@ -96,8 +98,7 @@ public:
 
 
 private:
-    Mat33 K_;
-    SE3 cam_ext_;
+    vo_husky::Camera::Ptr camera_;
 };
 
 

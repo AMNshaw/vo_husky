@@ -103,4 +103,4 @@ void Map::CleanMap() {
     LOG(INFO) << "Removed " << cnt_landmark_removed << " active landmarks";
 }
 
-}  // namespace myslam
+}  // namespace vo_husky

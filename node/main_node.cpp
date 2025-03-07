@@ -54,7 +54,6 @@ int main(int argc, char *argv[]) {
             // std::cout << "Pass\n";
             continue;
         }
-        std::cout << "\n"; LOG(INFO) << "New frame";
         new_frame->SetGroundTruthPose(node_gt->HuskyPose());
 
         if(!vo->step(new_frame)){

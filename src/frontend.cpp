@@ -35,7 +35,7 @@ bool Frontend::AddFrame(Frame::Ptr frame) {
             int num_track_lastFrame = TrackLastFrame();
             if (num_track_lastFrame == 0) {
                 LOG(ERROR) << "Fail to track last frame \n";
-                return false;
+                status_ = FrontendStatus::LOST;
             }
             LOG(INFO) << "Estimating current pose with EPNP...\n"; 
             tracking_inliers_ = EstimatePose();
@@ -45,30 +45,30 @@ bool Frontend::AddFrame(Frame::Ptr frame) {
                 return false;
             }
             else{
-                current_frame_->ShowCurrPose("PnP");
+                // current_frame_->ShowCurrPose("PnP");
             }
 
             if(tracking_inliers_ < num_features_tracking_){
                 LOG(INFO) << "Tracking inliers is not enough, using pose only BA...\n";
                 tracking_inliers_ = PoseOnlyBA();
-                current_frame_->ShowCurrPose("Pose Only BA");
+                // current_frame_->ShowCurrPose("Pose Only BA");
 
-                if(tracking_inliers_ < num_features_tracking_bad_)
-                    status_ = FrontendStatus::LOST;
+                // if(tracking_inliers_ < num_features_tracking_bad_)
+                //     status_ = FrontendStatus::LOST;
                 
                 InsertKeyframe();
                 
             }else
                 status_ = FrontendStatus::TRACKING;
 
-            current_frame_->ShowCurrPose("GT");
+            // current_frame_->ShowCurrPose("GT");
 
             break;
         }
             
         case FrontendStatus::LOST: {
-            Reset();
-            break;
+            // Reset();
+            return false;
         }
             
     }
@@ -150,7 +150,7 @@ bool Frontend::BuildInitMap() {
 
     current_frame_->SetKeyFrame();
     map_->InsertKeyFrame(current_frame_);
-    // backend_->UpdateMap();
+    backend_->UpdateMap();
 
     LOG(INFO) << "Initial map created with " << cnt_init_landmarks
               << " map points";
@@ -189,8 +189,8 @@ int Frontend::TrackLastFrame() {
         kps_current,
         status, 
         error, 
-        cv::Size(15, 15), 
-        4,
+        cv::Size(11, 11), 
+        3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW); //
 
@@ -287,11 +287,6 @@ int Frontend::EstimatePose(){
 
 int Frontend::PoseOnlyBA(){
 
-    // Eigen::Matrix3d R_eigen = current_frame_->Pose_EST().rotationMatrix();
-    // Eigen::Vector3d t_eigen = current_frame_->Pose_EST().translation();
-    // cv::Mat R_cv; cv::eigen2cv(R_eigen, R_cv);
-    // cv::Mat rvec; cv::Rodrigues(R_cv, rvec);
-
     Vec6 xi = current_frame_->Pose_EST().log();
      
     double pose[6];
@@ -302,11 +297,11 @@ int Frontend::PoseOnlyBA(){
     pose[4] = xi(4);
     pose[5] = xi(5);
 
-    const double chi2_th = 10;
+    const double chi2_th = 5.991;
     int cnt_outlier = 0;
     int prev_cnt_outlier = 0;
 
-    LOG(INFO) << "Optimizing...\n";
+    LOG(INFO) << "Pose only BA optimizing...\n";
     for (int iteration = 0; iteration < 4; ++iteration) {
 
         ceres::Problem problem;
@@ -315,7 +310,6 @@ int Frontend::PoseOnlyBA(){
         problem.SetManifold(pose, new SophusSE3Manifold());
 
 
-        // 每個特徵對 / map point 都加一個 ReprojectionErrCeres+-
         for (auto &feat : inlier_features_pnp_) {
             auto mp = feat->map_point_.lock();
             if(!mp) continue;
@@ -326,13 +320,11 @@ int Frontend::PoseOnlyBA(){
                             std::make_unique<ReprojectionErrCeres>(
                                 Pw, uv, camera_);
 
-            // 若要 robust kernel
             std::unique_ptr<ceres::LossFunction> loss;
             if (iteration != 2) {
                 loss = std::make_unique<ceres::HuberLoss>(1.0);
             }
 
-            // 注意: 這裡是一維參數塊(6維)
             problem.AddResidualBlock(cost_func.release(), loss.release(), pose);            
         }
         ceres::Solver::Options options;
@@ -374,7 +366,7 @@ int Frontend::PoseOnlyBA(){
 
     }
 
-    LOG(INFO) << "Outlier/Inlier in pose estimating: " << cnt_outlier << "/"
+    LOG(INFO) << "Outlier/Inlier in pose only BA estimation: " << cnt_outlier << "/"
               << inlier_features_pnp_.size() - cnt_outlier;
     
     xi << pose[0], pose[1], pose[2], pose[3], pose[4], pose[5];
@@ -411,7 +403,7 @@ bool Frontend::InsertKeyframe() {
     // Calculate map points
     CalculateNewMapPoints();
     // update backend because we have a new keyframe
-    // backend_->UpdateMap();
+    backend_->UpdateMap();
     cnt_keyframe ++;
 
     if(cnt_keyframe == 7){

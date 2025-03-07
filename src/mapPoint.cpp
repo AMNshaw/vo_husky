@@ -54,4 +54,4 @@ void MapPoint::RemoveObservation(std::shared_ptr<Feature> feat) {
     }
 }
 
-}  // namespace myslam
+}  // namespace vo_husky

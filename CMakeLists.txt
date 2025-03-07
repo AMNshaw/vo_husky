@@ -67,6 +67,9 @@ include_directories(${VTK_INCLUDE_DIRS})
 link_directories(${VTK_LIBRARY_DIRS})
 add_definitions(${VTK_DEFINITIONS})
 
+SET(G2O_LIBS g2o_csparse_extension g2o_stuff g2o_core cxsparse)
+include_directories(${PROJECT_SOURCE_DIR} ${EIGEN3_INCLUDE_DIR} ${CSPARSE_INCLUDE_DIR} ${G2O_INCLUDE_DIRS})
+
 include_directories(include)
 
 # camera 
@@ -159,6 +162,7 @@ target_link_libraries(frontend
   mapPoint
   map
   viewer
+  backend
   ${CERES_LIBRARIES}
 )
 
@@ -181,7 +185,11 @@ target_link_libraries(backend
   feature
   mapPoint
   map
-  ${G2O_LIBRARIES} g2o_core g2o_stuff g2o_types_sba g2o_solver_csparse g2o_csparse_extension
+  ${G2O_LIBRARIES} 
+  g2o_core g2o_stuff g2o_types_sba  
+  g2o_types_slam3d 
+  g2o_solver_csparse g2o_csparse_extension
+  cholmod g2o_solver_cholmod
 )
 
 # visual odometry
@@ -224,11 +232,11 @@ install(
 )
 target_link_libraries(viewer
   map
-  ${PCL_LIBRARIES}
   ${OpenCV_LIBS}
-  ${PCL_COMMON_LIBRARIES}
-  ${PCL_VISUALIZATION_LIBRARIES}
-  ${VTK_LIBRARIES}
+  ${Pangolin_LIBRARIES} GL GLU GLEW glut
+  ${GTEST_BOTH_LIBRARIES}
+  ${GLOG_LIBRARIES}
+  ${GFLAGS_LIBRARIES}
 )
 
 # camera_data_sub
