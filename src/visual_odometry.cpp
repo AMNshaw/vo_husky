@@ -1,6 +1,3 @@
-//
-// Created by gaoxiang on 19-5-4.
-//
 #include "vo_husky/visual_odometry.h"
 #include <chrono>
 

@@ -24,24 +24,6 @@ namespace vo_husky {
 Frame::Frame(long id, double time_stamp, const SE3 &pose, const Mat &img_color, const Mat &img_depth)
         : id_(id), time_stamp_(time_stamp), pose_est_(pose), img_color_(img_color), img_depth_(img_depth) {}
 
-SE3 Frame::Pose_EST() {
-    std::unique_lock<std::mutex> lck(mutex_pose_);
-    return pose_est_;
-}
-
-SE3 Frame::Pose_GT() {
-    return pose_gt_;
-}
-
-void Frame::SetEstimatePose(const SE3 &pose_est) {
-    std::unique_lock<std::mutex> lck(mutex_pose_);
-    pose_est_ = pose_est;
-}
-
-void Frame::SetGroundTruthPose(const SE3 &pose_gt){
-    pose_gt_ = pose_gt;
-}
-
 void Frame::ShowCurrPose(std::string prefix){
     if(prefix == "GT"){
         LOG(INFO) << "Ground truth pose:\n" 
@@ -68,12 +50,25 @@ void Frame::ShowCurrPose(std::string prefix){
     
 }
 
+
+/**
+ * Create a new frame with a unique ID.
+ * 
+ * This function generates a new Frame instance and assigns it a unique ID.
+ * The ID is managed using a static variable `factory_id`, which is incremented
+ * every time a new frame is created. The use of `static` ensures that the ID 
+ * persists across multiple calls to the function, allowing each frame to have 
+ * a globally unique identifier.
+ *
+ * @return A shared pointer to the newly created Frame.
+ */
 Frame::Ptr Frame::CreateFrame() {
-    static long factory_id = 0;
+    static long factory_id = 0;  // Persistent counter for unique frame IDs
     Frame::Ptr new_frame(new Frame);
-    new_frame->id_ = factory_id++;
+    new_frame->id_ = factory_id++;  // Assign and increment the ID
     return new_frame;
 }
+
 
 void Frame::SetKeyFrame() {
     static long keyframe_factory_id = 0;

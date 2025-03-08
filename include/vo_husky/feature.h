@@ -13,19 +13,21 @@ struct Frame;
 struct MapPoint;
 
 /**
- * 2D 特征点
- * 在三角化之后会被关联一个地图点
- */
+ * 2D Feature 
+ * 
+ * This structure represents a 2D feature detected in an RGB-D image. Each feature may be 
+ * associated with a corresponding MapPoint in the 3D map.
+*/
 struct Feature {
    public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef std::shared_ptr<Feature> Ptr;
 
-    std::weak_ptr<Frame> frame_;         // 持有该feature的frame
-    cv::KeyPoint kp_;              // 2D提取位置
-    std::weak_ptr<MapPoint> map_point_;  // 关联地图点
+    cv::KeyPoint kp_;                    // 2D keypoint representing the pixel location in the image
+    std::weak_ptr<MapPoint> map_point_;  // The associated 3D map point, if available
+    std::weak_ptr<Frame> frame_;         // The frame that contains this feature (use weak_ptr to prevent circular references)
 
-    bool is_outlier_ = false;       // 是否为异常点
+    bool is_outlier_ = false;            // Flag indicating whether this feature is considered an outlier
 
    public:
     Feature() {}

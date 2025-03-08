@@ -2,7 +2,16 @@
 #ifndef VOHUSKY_COMMON_INCLUDE_H
 #define VOHUSKY_COMMON_INCLUDE_H
 
-// std
+
+
+/************************************************************************************************
+ * Define the commonly included file to avoid a long include list
+************************************************************************************************/
+
+
+/****************************************************************************
+ * For STL
+****************************************************************************/
 #include <atomic>
 #include <condition_variable>
 #include <iostream>
@@ -17,12 +26,13 @@
 #include <unordered_map>
 #include <vector>
 
-// define the commonly included file to avoid a long include list
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-// typedefs for eigen
+/****************************************************************************
+ * For eigen
+****************************************************************************/
 // double matricies
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatXX;
 typedef Eigen::Matrix<double, 10, 10> Mat1010;
@@ -99,19 +109,30 @@ typedef Eigen::Matrix<float, 9, 1> Vec9f;
 typedef Eigen::Matrix<float, Eigen::Dynamic, 1> VecXf;
 typedef Eigen::Matrix<float, 14, 1> Vec14f;
 
-// for Sophus
+/***************************************************************************
+ * For Sophus
+****************************************************************************/
 #include <sophus/se3.hpp>
 #include <sophus/so3.hpp>
 
 typedef Sophus::SE3d SE3;
 typedef Sophus::SO3d SO3;
 
+/***************************************************************************
+ * For CV
+****************************************************************************/
+
 // for cv
 #include <opencv2/core/core.hpp>
 
 using cv::Mat;
 
-// glog
+/***************************************************************************
+ * For GLOG
+****************************************************************************/
 #include <glog/logging.h>
 
-#endif  // MYSLAM_COMMON_INCLUDE_H
+/***************************************************************************/
+
+
+#endif  // VOHUSKY_COMMON_INCLUDE_H

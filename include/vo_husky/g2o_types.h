@@ -1,6 +1,6 @@
 #pragma once
-#ifndef G2O_TPYES_H
-#define G2O_TPYES_H
+#ifndef G2O_TYPES_H
+#define G2O_TYPES_H
 
 #include "vo_husky/common_include.h"
 #include "vo_husky/camera.h"
@@ -18,7 +18,12 @@
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 
-class VertexPose : public g2o::BaseVertex<6, SE3>{
+/**
+ * VertexPose
+ * 
+ * SE3 pose representation as a vertex in the optimization graph.
+ */
+class VertexPose : public g2o::BaseVertex<6, SE3> {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -34,10 +39,15 @@ public:
 
     virtual bool read(std::istream &in) override { return true; }
 
-    virtual bool write(std::ostream &out) const override { return true;}
+    virtual bool write(std::ostream &out) const override { return true; }
 };
 
-class Vertex3dMapPoint : public g2o::BaseVertex<3, Vec3>{
+/**
+ * Vertex3dMapPoint
+ * 
+ * 3D landmark representation as a vertex in the optimization graph.
+ */
+class Vertex3dMapPoint : public g2o::BaseVertex<3, Vec3> {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -51,10 +61,15 @@ public:
 
     virtual bool read(std::istream &in) override { return true; }
 
-    virtual bool write(std::ostream &out) const override { return true;}
+    virtual bool write(std::ostream &out) const override { return true; }
 };
 
-class EdgeReprojection : public g2o::BaseBinaryEdge<2, Vec2, VertexPose, Vertex3dMapPoint>{
+/**
+ * EdgeReprojection
+ * 
+ * Reprojection error edge connecting a camera pose and a 3D landmark.
+ */
+class EdgeReprojection : public g2o::BaseBinaryEdge<2, Vec2, VertexPose, Vertex3dMapPoint> {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -94,14 +109,17 @@ public:
 
     virtual bool read(std::istream &in) override { return true; }
 
-    virtual bool write(std::ostream &out) const override { return true;}
-
+    virtual bool write(std::ostream &out) const override { return true; }
 
 private:
     vo_husky::Camera::Ptr camera_;
 };
 
-
+/**
+ * EdgePoseGraph
+ * 
+ * Edge representing the relative pose constraint between two poses.
+ */
 class EdgePoseGraph : public g2o::BaseBinaryEdge<6, SE3, VertexPose, VertexPose> {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -116,11 +134,13 @@ public:
         SE3 v1 = (static_cast<VertexPose *> (_vertices[0]))->estimate();
         SE3 v2 = (static_cast<VertexPose *> (_vertices[1]))->estimate();
         Mat66 J = JRInv(SE3::exp(_error));
-        // 尝试把J近似为I？
         _jacobianOplusXi = -J * v2.inverse().Adj();
         _jacobianOplusXj = J * v2.inverse().Adj();
     }
 
+    /**
+     * Compute the right Jacobian inverse for SE3.
+     */
     Mat66 JRInv(const SE3 &e) {
         Mat66 J;
         J.block(0, 0, 3, 3) = SO3::hat(e.so3().log());
@@ -128,14 +148,12 @@ public:
         J.block(3, 0, 3, 3) = Mat33::Zero(3, 3);
         J.block(3, 3, 3, 3) = SO3::hat(e.so3().log());
         J = J * 0.5 + Mat66::Identity();
-        //J = Mat66::Identity();    // try Identity if you want
         return J;
     }
 
     virtual bool read(std::istream &in) override { return true; }
 
-    virtual bool write(std::ostream &out) const override { return true;}
+    virtual bool write(std::ostream &out) const override { return true; }
 };
 
-
-#endif
+#endif  // G2O_TYPES_H

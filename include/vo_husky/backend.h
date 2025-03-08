@@ -1,7 +1,4 @@
-//
-// Created by gaoxiang on 19-5-2.
-//
-
+#pragma once
 #ifndef VOHUSKY_BACKEND_H
 #define VOHUSKY_BACKEND_H
 
@@ -10,57 +7,62 @@
 #include "vo_husky/map.h"
 
 namespace vo_husky {
-class Map;
 
 /**
- * 后端
- * 有单独优化线程，在Map更新时启动优化
- * Map更新由前端触发
- */ 
+ * Backend
+ * 
+ * Processes optimization in a separate thread, triggered when the map is updated.
+ * The frontend signals a map update, which starts the optimization routines.
+ */
 class Backend {
    public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef std::shared_ptr<Backend> Ptr;
 
-    /// 构造函数中启动优化线程并挂起
+    // Start the backend thread loop in the constructor.
     Backend();
 
-    // 设置左右目的相机，用于获得内外参
-    void SetCamera(Camera::Ptr cam) { camera_ = cam;}
+    // Set the camera with its intrinsic and extrinsic parameters.
+    void SetCamera(Camera::Ptr cam) { camera_ = cam; }
 
-    /// 设置地图
+    // Set the map.
     void SetMap(std::shared_ptr<Map> map) { map_ = map; }
 
-    /// 触发地图更新，启动优化
+    // Trigger a map update to start optimization.
     void UpdateMap();
 
+    // Trigger an update of the pose graph.
     void UpdatePoseGraph();
 
-    /// 关闭后端线程
+    // Stop the backend thread.
     void Stop();
 
    private:
-    /// 后端线程
+    // Backend thread loop for bundle adjustment (BA).
     void Backendloop_BA();
+
+    // Backend thread loop for pose graph optimization (PGO).
     void Backendloop_PGO();
 
-    /// 对给定关键帧和路标点进行优化
+    // Optimize active keyframes and landmarks using bundle adjustment.
     void Optimize_BA(Map::KeyframesType& keyframes, Map::LandmarksType& landmarks);
+
+    // Optimize the pose graph using active keyframes.
     void Optimize_PoseGraph(Map::KeyframesType& keyframes);
 
-    std::shared_ptr<Map> map_;
-    std::thread pose_mapPoint_thread_;
-    std::thread pose_graph_thread_;
-    std::mutex data_mutex_;
+    std::shared_ptr<Map> map_;                // Map containing keyframes and landmarks
+    std::thread pose_mapPoint_thread_;        // Thread for BA optimization
+    std::thread pose_graph_thread_;           // Thread for pose graph optimization
+    std::mutex data_mutex_;                   // Mutex to protect shared data
 
-    std::condition_variable BA_update_;
-    std::condition_variable poseGraph_update;
-    std::atomic<bool> BA_running_;
-    std::atomic<bool> PGO_running_;
+    std::condition_variable BA_update_;       // Condition variable for BA updates
+    std::condition_variable poseGraph_update_;  // Condition variable for pose graph updates
+    std::atomic<bool> BA_running_;            // Flag indicating BA is running
+    std::atomic<bool> PGO_running_;           // Flag indicating PGO is running
 
-    Camera::Ptr camera_ = nullptr;
+    Camera::Ptr camera_ = nullptr;            // Camera used for optimization
 };
 
 }  // namespace vo_husky
 
-#endif  // MYSLAM_BACKEND_H
+#endif  // VOHUSKY_BACKEND_H

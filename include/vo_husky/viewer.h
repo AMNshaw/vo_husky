@@ -2,10 +2,8 @@
 #define VOHUSKY_VIEWER_H
 
 #include <thread>
-
 #include <pangolin/pangolin.h>
 #include <opencv2/opencv.hpp>
-
 #include "vo_husky/common_include.h"
 #include "vo_husky/frame.h"
 #include "vo_husky/map.h"
@@ -13,7 +11,9 @@
 namespace vo_husky {
 
 /**
- * 可视化
+ * Viewer
+ * 
+ * Handles visualization using Pangolin and OpenCV.
  */
 class Viewer {
    public:
@@ -22,47 +22,57 @@ class Viewer {
 
     Viewer();
 
+    // Set the map.
     void SetMap(Map::Ptr map) { map_ = map; }
 
+    // Set the camera.
     void SetCamera(Camera::Ptr camera) { camera_ = camera; }
 
+    // Close the viewer.
     void Close();
 
-    // 增加一个当前帧
+    // Add the current frame to be visualized.
     void AddCurrentFrame(Frame::Ptr current_frame);
 
-    // 更新地图
+    // Update the map for visualization.
     void UpdateMap();
 
    private:
-
+    // Main loop for the viewer thread.
     void ThreadLoop();
 
+    // Generate an image of the current frame.
     cv::Mat PlotFrameImage();
 
+    // Plot a comparison between ground truth and estimated poses.
     void PlotPoseComparison(const SE3& groundtruth, const SE3& estimate);
 
+    // Draw the 3D pose of a frame.
     void Draw3DPose(Frame::Ptr frame);
 
+    // Draw the map points.
     void DrawMapPoints();
 
+    // Adjust the view to follow the current frame.
     void FollowCurrentFrame(pangolin::OpenGlRenderState& vis_camera);
 
-    Frame::Ptr current_frame_ = nullptr;
-    Map::Ptr map_ = nullptr;
-    Camera::Ptr camera_ = nullptr;
+    // Data members:
+    Frame::Ptr current_frame_ = nullptr;    // Current frame for display
+    Map::Ptr map_ = nullptr;                  // Map containing keyframes and landmarks
+    Camera::Ptr camera_ = nullptr;            // Camera used for visualization
 
-    cv::Mat canvas_;
+    cv::Mat canvas_;                        // Canvas for drawing images
 
-    std::thread viewer_thread_;
-    bool viewer_running_ = true;
+    std::thread viewer_thread_;             // Thread running the viewer loop
+    bool viewer_running_ = true;            // Flag indicating if the viewer is active
 
-    std::unordered_map<unsigned long, Frame::Ptr> active_keyframes_;
-    std::unordered_map<unsigned long, MapPoint::Ptr> active_landmarks_;
-    bool map_updated_ = false;
+    std::unordered_map<unsigned long, Frame::Ptr> active_keyframes_;  // Active keyframes
+    std::unordered_map<unsigned long, MapPoint::Ptr> active_landmarks_; // Active landmarks
+    bool map_updated_ = false;              // Flag indicating map updates
 
-    std::mutex viewer_data_mutex_;
+    std::mutex viewer_data_mutex_;          // Mutex protecting viewer data
 };
+
 }  // namespace vo_husky
 
 #endif  // VOHUSKY_VIEWER_H

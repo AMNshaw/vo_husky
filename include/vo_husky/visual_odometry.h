@@ -11,47 +11,53 @@
 
 namespace vo_husky {
 
-
+/**
+ * VisualOdometry
+ *
+ * Manages the visual odometry process by integrating the frontend, backend,
+ * and viewer modules. It handles the initialization, processing of frames,
+ * and closing of the visual odometry system.
+ */
 class VisualOdometry {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef std::shared_ptr<VisualOdometry> Ptr;
 
-    /// constructor with config file
+    // Constructor: Initialize VisualOdometry with a camera.
     VisualOdometry(Camera::Ptr camera);
 
     /**
-     * do initialization things before run
-     * @return true if success
+     * Initialize the VisualOdometry system.
+     * @return true if initialization is successful.
      */
     bool Init();
 
     /**
-     * start vo in the dataset
+     * Close the Visual Odometry system.
      */
     void End();
 
-
+    /**
+     * Process the next frame.
+     * @param newFrame The new frame to be processed.
+     * @return true if the step is successful.
+     */
     bool step(Frame::Ptr newFrame);
 
-    /**
-     * Make a step forward in dataset
-     */
-
-    /// 获取前端状态
+    // Get the current status of the frontend.
     FrontendStatus GetFrontendStatus() const { return frontend_->GetStatus(); }
 
 private:
-    bool inited_ = false;
-    std::string config_file_path_;
+    bool inited_ = false;            // Flag to indicate if the system has been initialized.
+    std::string config_file_path_;   // Path to configuration file.
 
-    Camera::Ptr camera_ = nullptr;
-    Frontend::Ptr frontend_ = nullptr;
-    Backend::Ptr backend_ = nullptr;
-    Map::Ptr map_ = nullptr;
-    Viewer::Ptr viewer_ = nullptr;
-
+    Camera::Ptr camera_ = nullptr;   // Camera used in the system.
+    Frontend::Ptr frontend_ = nullptr; // Frontend module for tracking.
+    Backend::Ptr backend_ = nullptr;   // Backend module for optimization.
+    Map::Ptr map_ = nullptr;           // Map that holds keyframes and landmarks.
+    Viewer::Ptr viewer_ = nullptr;     // Viewer module for visualization.
 };
+
 }  // namespace vo_husky
 
 #endif  // VOHUSKY_VISUAL_ODOMETRY_H

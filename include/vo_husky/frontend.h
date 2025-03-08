@@ -20,8 +20,10 @@ class Viewer;
 enum class FrontendStatus { INITING, TRACKING, LOST };
 
 /**
- * 前端
- * 估计当前帧Pose，在满足关键帧条件时向地图加入关键帧并触发优化
+ * Frontend
+ * 
+ * Estimates the current frame's pose, inserts keyframes, and activates backend optimization
+ * when specific conditions are met.
  */
 class Frontend {
    public:
@@ -30,108 +32,81 @@ class Frontend {
 
     Frontend();
 
-    /// 外部接口，添加一个帧并计算其定位结果
+    // Add a frame and process it.
     bool AddFrame(Frame::Ptr frame);
 
-    /// Set函数
+    // Set the map.
     void SetMap(Map::Ptr map) { map_ = map; }
 
+    // Set the backend.
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
+    // Set the viewer.
     void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
 
+    // Get the current status of the frontend.
     FrontendStatus GetStatus() const { return status_; }
 
-    void SetCamera(Camera::Ptr camera) { camera_ = camera;}
+    // Set the camera.
+    void SetCamera(Camera::Ptr camera) { camera_ = camera; }
 
    private:
-    /**
-     * Track with last frame
-     * @return num of tracked points
-     */
+    // Track features from the last frame. Returns the number of tracked points.
     int TrackLastFrame();
 
-    /**
-     * Estimate pose between frames
-     * @return num of inliers
-     */
+    // Estimate the pose between frames. Returns the number of inliers.
     int EstimatePose();
 
-    /**
-     * Reset when lost
-     * @return true if success
-     */
+    // Reset the frontend when tracking is lost. Returns true if successful.
     bool Reset();
 
-    /**
-     * estimate current frame's pose
-     * @return num of inliers
-     */
+    // Perform pose-only bundle adjustment. Returns the number of inliers.
     int PoseOnlyBA();
 
-    /**
-     * set current frame as a keyframe and insert it into backend
-     * @return true if success
-     */
+    // Insert the current frame as a keyframe and add it to the backend. Returns true if successful.
     bool InsertKeyframe();
 
-    /**
-     * Try init the frontend with stereo images saved in current_frame_
-     * @return true if success
-     */
+    // Initialize the frontend with RGB-D images in the current frame. Returns true if successful.
     bool RGBdInit();
 
-    /**
-     * Detect features in left image in current_frame_
-     * keypoints will be saved in current_frame_
-     * @return
-     */
+    // Detect features in the current frame. Returns the number of detected keypoints.
     int DetectFeatures();
 
-    /**
-     * Build the initial map with single image
-     * @return true if succeed
-     */
+    // Build the initial map using a single image. Returns true if successful.
     bool BuildInitMap();
 
-    /**
-     * Find the 3D MapPoints in current frame
-     * @return num of points
-     */
+    // Compute new map points from the current frame. Returns the number of points.
     int CalculateNewMapPoints();
 
-    /**
-     * Set the features in keyframe as new observation of the map points
-     */
+    // Set the features in the keyframe as new observations for the corresponding map points.
     void SetObservationsForKeyFrame();
 
-    // data
-    FrontendStatus status_ = FrontendStatus::INITING;
+    // Data members
 
-    Frame::Ptr current_frame_ = nullptr;  // 当前帧
-    Frame::Ptr last_frame_ = nullptr;     // 上一帧
-    Camera::Ptr camera_ = nullptr; //camera
+    FrontendStatus status_ = FrontendStatus::INITING;  // Current status of the frontend
 
-    Map::Ptr map_ = nullptr;
-    std::shared_ptr<Backend> backend_ = nullptr;
-    std::shared_ptr<Viewer> viewer_ = nullptr;
+    Frame::Ptr current_frame_ = nullptr;  // Current frame
+    Frame::Ptr last_frame_ = nullptr;     // Last frame
+    Camera::Ptr camera_ = nullptr;        // Camera associated with the frontend
 
-    SE3 relative_motion_;  // 当前帧与上一帧的相对运动，用于估计当前帧pose初值
+    Map::Ptr map_ = nullptr;                    // The map (owned by the system)
+    std::shared_ptr<Backend> backend_ = nullptr;  // Backend module for optimization
+    std::shared_ptr<Viewer> viewer_ = nullptr;    // Viewer module for visualization
 
-    int tracking_inliers_ = 0;  // inliers, used for testing new keyframes
-    std::vector<Feature::Ptr> inlier_features_pnp_;
+    SE3 relative_motion_;  // Relative motion between current and last frame, used for initial pose guess
 
-    // params
-    int num_features_ = 200;
-    int num_features_init_ = 100;
-    int num_features_tracking_ = 90;
-    int num_features_tracking_bad_ = 15;
-    int num_features_needed_for_keyframe_ = 70;
+    int tracking_inliers_ = 0;                // Number of inliers from feature tracking
+    std::vector<Feature::Ptr> inlier_features_pnp_;  // Inlier features used in pose estimation
 
-    // utilities
-    cv::Ptr<cv::GFTTDetector> gftt_;  // feature detector in opencv
+    // Parameters
+    int num_features_ = 200;                // Maximum number of features to detect
+    int num_features_init_ = 100;           // Number of features for initialization
+    int num_features_tracking_ = 90;        // Minimum number of features needed for tracking
+    int num_features_tracking_bad_ = 15;    // Threshold for a bad tracking result
+    int num_features_needed_for_keyframe_ = 70;  // Minimum features required to insert a new keyframe
 
-    // backend
+    // Utilities
+    cv::Ptr<cv::GFTTDetector> gftt_;  // OpenCV feature detector
 };
 
 }  // namespace vo_husky

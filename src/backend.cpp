@@ -24,7 +24,7 @@ void Backend::UpdateMap() {
 
 void Backend::UpdatePoseGraph() {
     std::unique_lock<std::mutex> lock(data_mutex_);
-    poseGraph_update.notify_one();
+    poseGraph_update_.notify_one();
 }
 
 void Backend::Stop() {
@@ -32,7 +32,7 @@ void Backend::Stop() {
     PGO_running_.store(false);
 
     BA_update_.notify_one();
-    poseGraph_update.notify_one();
+    poseGraph_update_.notify_one();
 
     pose_mapPoint_thread_.join();
     pose_graph_thread_.join();
@@ -55,7 +55,7 @@ void Backend::Backendloop_PGO() {
         Map::KeyframesType all_kfs;
         {
             std::unique_lock<std::mutex> lock(data_mutex_);
-            poseGraph_update.wait(lock);
+            poseGraph_update_.wait(lock);
 
             all_kfs = map_->GetAllKeyFrames();
         }
